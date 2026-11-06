@@ -1,0 +1,16 @@
+Q Salon 1.4.3.0
+
+Improves remembered usernames and adds signed automatic updates after device activation.
+Database migrations run only when both the installation policy and current device settings identify the machine as Primary, and SQL confirms the physical host is the same PC. Secondary devices update application files only.
+Updates are downloaded in the background and applied at the next startup. Database updates require a verified safety backup; busy connections defer migration rather than disconnecting users.
+
+Application schema: 35. Included signed SQL migration path: 33 -> 35.
+Existing older installations require one-time setup of the new updater; this release cannot make an old installer update itself retroactively.
+Normal update archives preserve customer Reports, configuration and activation state.
+
+Assets:
+- SalonERP-1.4.3.0.zip
+- SalonERP-Database-1.4.3.0.zip
+- latest.json
+
+Local build, SQL migration/rollback, clean-database provisioning, package signature and package inventory checks passed. A complete installation and scheduled-task update on the tester's separate PC is still required.

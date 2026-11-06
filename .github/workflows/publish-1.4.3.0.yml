@@ -1,0 +1,55 @@
+name: Publish verified Q Salon 1.4.3.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release-inputs/1.4.3.0/**'
+      - '.github/workflows/publish-1.4.3.0.yml'
+      - '.github/scripts/publish-1.4.3.0.ps1'
+
+permissions: {}
+
+concurrency:
+  group: qsalon-release-v1.4.3.0
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'hussin0100808-ux/salonerp-releases' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the reviewed publisher from the exact triggering commit
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:GITHUB_REPOSITORY -cne 'hussin0100808-ux/salonerp-releases' -or $env:GITHUB_REF -cne 'refs/heads/main') { throw 'Unexpected workflow source.' }
+          $url = "https://raw.githubusercontent.com/hussin0100808-ux/salonerp-releases/$env:GITHUB_SHA/.github/scripts/publish-1.4.3.0.ps1"
+          $destination = Join-Path $env:RUNNER_TEMP 'publish-1.4.3.0.ps1'
+          if (Test-Path -LiteralPath $destination) { throw 'Publisher destination already exists.' }
+          $handler = [Net.Http.HttpClientHandler]::new()
+          $handler.AllowAutoRedirect = $false
+          $client = [Net.Http.HttpClient]::new($handler)
+          $client.Timeout = [TimeSpan]::FromSeconds(90)
+          $response = $null
+          try {
+            $response = $client.GetAsync($url).GetAwaiter().GetResult()
+            if ([int]$response.StatusCode -ne 200) { throw 'Cannot download the reviewed publisher.' }
+            $bytes = $response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+            if ($bytes.Length -gt 65536) { throw 'Unexpected publisher length.' }
+            $digest = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes)).ToLowerInvariant()
+            if ($digest -cne '4faeccd4695cb6496e8c13e83f6d9fa8d0f38d4708b5e494f7a3b4d01b0c2446') { throw 'Publisher SHA256 differs from the reviewed bytes.' }
+            $file = [IO.File]::Open($destination,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+            try { $file.Write($bytes,0,$bytes.Length) } finally { $file.Dispose() }
+          } finally { if ($null -ne $response) { $response.Dispose() }; $client.Dispose() }
+      - name: Verify assets, upload a draft, and publish only after round-trip validation
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & (Join-Path $env:RUNNER_TEMP 'publish-1.4.3.0.ps1') -SourceCommit $env:GITHUB_SHA
+          if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw 'Verified release publisher failed; review its preserved draft state.' }
